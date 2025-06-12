@@ -2,25 +2,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 from scipy.fftpack import dct, idct
+from skimage import metrics
 
 def dct_1d(x, N):
-    out = np.zeros(N)
+    out = np.zeros(N).astype(np.int16)
     for u in range(N):
         sum_val = 0
         for i in range(N):
-            sum_val += x[i] * np.cos((2*i+1)*u*np.pi/(2*N))
+            sum_val += (np.int16)(x[i] * np.cos((2*i+1)*u*np.pi/(2*N)))
         if u == 0:
             Cu = np.sqrt(1/N)
         else:
             Cu = np.sqrt(2/N)
         #print(type(sum_val))
-        out[u] = Cu * sum_val
-        #print(type(out[u]))
+        out[u] = (Cu * sum_val)
+        
     return out
 
 def dct_2d(block):
     N = 8
-    dct_block = np.zeros((N,N))
+    dct_block = np.zeros((N,N)).astype(np.int16)
     
     for u in range(N):
         dct_block[u] = dct_1d(block[u], N)
@@ -30,7 +31,7 @@ def dct_2d(block):
     return dct_block
         
 def idct_1d(X, N):
-    out = np.zeros(N)
+    out = np.zeros(N).astype(np.int16)
     for i in range(N):
         sum_val = 0
         for u in range(N):
@@ -38,13 +39,13 @@ def idct_1d(X, N):
                 Cu = np.sqrt(1/N)
             else:
                 Cu = np.sqrt(2/N)
-            sum_val += Cu * X[u] * np.cos((2*i+1)*u*np.pi/(2*N))
+            sum_val += (np.int16)(Cu * X[u] * np.cos((2*i+1)*u*np.pi/(2*N)))
         out[i] = sum_val
     return out
 
 def idct_2d(dct_block):
     N = 8
-    block = np.zeros((N,N))
+    block = np.zeros((N,N)).astype(np.int16)
 
     for i in range(N):
         block[i] = idct_1d(dct_block[i], N)
@@ -58,20 +59,23 @@ def process_image(image_path):
     h, w = img_data.shape
     img_data = img_data[:h//8*8, :w//8*8]
     
-    dct_blocks = np.zeros_like(img_data, dtype = np.float32)
+    dct_blocks = np.zeros_like(img_data, dtype = np.int16)
     reconstructed = np.zeros_like(img_data, dtype = np.uint8)
 
-    dct_blocks_py = np.zeros_like(img_data, dtype = np.float32)
-    reconstructed_py = np.zeros_like(img_data, dtype = np.float32)
+    dct_blocks_py = np.zeros_like(img_data, dtype = np.int16)
+    reconstructed_py = np.zeros_like(img_data, dtype = np.uint8)
     
     for i in range(0, img_data.shape[0], 8):
         for j in range(0, img_data.shape[1], 8):
             block = img_data[i:i+8, j:j+8]
             
-            dct_block_py = dct(dct(block.T, norm='ortho').T, norm='ortho') 
-            dct_block = dct_2d(block).astype(np.float32)
+            dct_block_py = dct(dct(block, axis = 0, norm='ortho'), axis = 1, norm='ortho') 
+            dct_block = dct_2d(block)
+
             dct_blocks_py[i:i+8, j:j+8] = dct_block_py  
             dct_blocks[i:i+8, j:j+8] = dct_block  
+    print(dct_block_py[0,0].dtype)
+    print(dct_block[0,0].dtype)
     print(type(block[0,0]))
     print(type(dct_blocks[0,0]))
     for i in range(0, dct_blocks.shape[0], 8):
@@ -118,25 +122,20 @@ def process_image(image_path):
     plt.axis('off')
     
     x, y = h//8*8, w//8*8
-    
+    sum_val_my = 0
     for i in range(x):
-        sum_val_my, sum_val_py = 0, 0
         for j in range(y):
-            sum_val_py += (abs(img_data[i,j]-reconstructed_py[i,j])**2).astype(np.float32)
-            sum_val_my += (abs(img_data[i,j]-reconstructed[i,j])**2).astype(np.float32)
-    RMSE_my = np.sqrt(1/(x*y) * sum_val_my) 
-    RMSE_py = np.sqrt(1/(x*y) * sum_val_py) 
-    #print(type(sum_val_py))
-   
-    print('RMSE_my = ', RMSE_my)
-    PSNR_my = 20 * np.log10(255/RMSE_my)
+            sum_val_my += (abs(img_data[i,j].astype(np.float64)-reconstructed[i,j].astype(np.float64))**2)
+    MSE_my = sum_val_my / (x*y)
+    PSNR_my = 10 * np.log10(255**2/MSE_my)
+    mse = metrics.mean_squared_error(img_data, reconstructed)
+    psnr = metrics.peak_signal_noise_ratio(img_data, reconstructed)
 
-    print('RMSE_py = ', RMSE_py)
-    PSNR_py = 20 * np.log10(255/RMSE_py)
-
-    print('PSNR_py = ', PSNR_py)
+    print('MSE_my = ', MSE_my)
     print('PSNR_my = ', PSNR_my)
-    print(type(PSNR_my))
+    print('mse_py = ', mse)
+    print('psnr_py = ', psnr)
+
     plt.show()
 if __name__ == "__main__":
-    process_image("baboon.jpg")
+    process_image("lena.jpg")
