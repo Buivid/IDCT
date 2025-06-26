@@ -12,17 +12,24 @@ def butterfly(I0, I1):
     return O0, O1
 
 def rotation(I0, I1, k, n):
-    O0 = k*I1*(np.sin(np.pi*n/(2*N)) - np.cos(np.pi*n/(2*N))) + k*np.cos(np.pi*n/(2*N))*(I0+I1)
-    O1 = -k*I0*(np.cos(np.pi*n/(2*N)) + np.sin(np.pi*n/(2*N))) + k*np.cos(np.pi*n/(2*N))*(I0+I1)
+    #O0 = k*I1*(np.sin(np.pi*n/(2*N)) - np.cos(np.pi*n/(2*N))) + k*np.cos(np.pi*n/(2*N))*(I0+I1)
+    #O1 = -k*I0*(np.cos(np.pi*n/(2*N)) + np.sin(np.pi*n/(2*N))) + k*np.cos(np.pi*n/(2*N))*(I0+I1)
+    O0 = I0*k*np.cos(n*np.pi/(2*N))+I1*k*np.sin(n*np.pi/(2*N))
+    O1 = -I0*k*np.sin(n*np.pi/(2*N))+I1*k*np.cos(n*np.pi/(2*N))
     return O0, O1
 
-def scaleup(In):
-    O = In * np.sqrt(2)
+def rotation_2(I0, I1, phi):
+    O0 = I0*np.cos(phi) - I1*np.sin(phi)
+    O1 = I0 * np.sin(phi) + I1 * np.cos(phi)
+    return O0, O1
+
+def scaleup(In, k):
+    O = In * k
     return O
 
 def loeffler_DCT(x):
     #stage 1:
-    out = np.zeros(N)
+    out = np.zeros(N).astype(np.int16)
     temp = np.zeros(N).astype(np.int16)
     temp[0], temp[7] = butterfly(x[0], x[7])
     temp[1], temp[6] = butterfly(x[1], x[6])
@@ -45,10 +52,35 @@ def loeffler_DCT(x):
     temp[7], temp[4] = butterfly(temp[7], temp[4])
     temp[5] = scaleup(temp[5])
     temp[6] = scaleup(temp[6])
-    out = [temp[0], temp[4], temp[2], temp[6], temp[7], temp[3], temp[5], temp[1]]
-    #print(out)
+    out = [temp[0], temp[7], temp[2], temp[5], temp[1], temp[6], temp[3], temp[4]]
+    
     return out
 
+def loeffler_DCT_2(x):
+    out = np.zeros(N).astype(np.float32)
+    temp = np.zeros(N).astype(np.float32)
+    temp[0], temp[7] = butterfly(x[0], x[7])
+    temp[1], temp[6]  = butterfly(x[1], x[6])
+    temp[2], temp[5] = butterfly(x[2], x[6])
+    temp[3], temp[4] = butterfly(x[3], x[4])
+    #------------
+    temp[1], temp[2] = butterfly(temp[1], temp[2])
+    temp[0], temp[3] = butterfly(temp[0], temp[3])
+    #rotation stage
+    temp[3], temp[2] = rotation_2(temp[3], temp[2], -np.pi/8)
+    temp[7], temp[4] = rotation_2(temp[7], temp[4], -np.pi/16)
+    temp[6], temp[5] = rotation_2(temp[6], temp[5], -3*np.pi/16)
+    #-------------
+    out[0], out[4] = butterfly(temp[0], temp[1])
+    temp[4], temp[5] = butterfly(temp[4], temp[5])
+    temp[6], temp[7] = butterfly(temp[6], temp[7])
+    out[3], out[5] = butterfly(temp[5], temp[6])
+    out[2] = scaleup(temp[2], np.sqrt(2))
+    out[6] = scaleup(temp[3], np.sqrt(2))
+    out[1] = scaleup(temp[4], np.sqrt(2))
+    out[7] = scaleup(temp[7], np.sqrt(2))
+
+    return out
 
 def dct_1d(x, N):
     out = np.zeros(N)
@@ -77,21 +109,22 @@ def dct_2d(block):
     out = np.zeros((N,N)).astype(np.int16)
     
     for u in range(N):
-        dct_block[u] = loeffler_DCT(block[u])
+        dct_block[u] = loeffler_DCT_2(block[u])
         #print(dct_block[u])
         #dct_block[u] = dct_1d(block[u], N)
+        # print(dct_block[u])
+    dct_block = np.transpose(dct_block)
     for v in range(N):
-        dct_block[:, v] = loeffler_DCT(dct_block[:, v])
-        #dct_block[:, v] = dct_1d(dct_block[:,v], N)
+        dct_block[v] = loeffler_DCT_2(dct_block[v]) 
+        #dct_block[:, v] = dct_1d(dct_block[:, v], N)
+    
     # print(dct_block)
     # for i in range(N):
     #     for j in range(N):
     #         out[i,j] = np.right_shift(dct_block[i,j], 5, casting='unsafe')
     out = dct_block
     return out
-
-
-        
+     
 def idct_1d(X, N):
     out = np.zeros(N).astype(np.int16)
     for i in range(N):
@@ -105,14 +138,43 @@ def idct_1d(X, N):
         out[i] = sum_val
     return out
 
+def loeffler_IDCT(X):
+    out = np.zeros(N)
+    temp = np.zeros(N).astype(np.int16)
+    
+    temp = [X[0], X[4], X[2], X[6], X[7], X[3], X[5], X[1]]
+    #stage 4
+    temp[4], temp[7] = butterfly(temp[4], temp[7])
+    temp[5] = scaleup(temp[5])
+    temp[6] = scaleup(temp[6])
+    #stage 3
+    temp[1], temp[0] = butterfly(temp[1], temp[0])
+    temp[2], temp[3] = rotation(temp[2], temp[3], np.sqrt(2), 1)
+    temp[6], temp[4] = butterfly(temp[6], temp[4])
+    temp[5], temp[7] = butterfly(temp[5], temp[7])
+    #stage 2
+    temp[3], temp[0] = butterfly(temp[3], temp[0])
+    temp[2], temp[1] = butterfly(temp[2], temp[1])
+    temp[4], temp[7] = rotation(temp[4], temp[7], 1, 3)
+    temp[5], temp[6] = rotation(temp[5], temp[6], 1, 1)
+    #stage 1
+    out[7], out[0] = butterfly(temp[7], temp[0])
+    out[6], out[1] = butterfly(temp[6], temp[1])
+    out[5], out[2] = butterfly(temp[5], temp[2])
+    out[4], out[3] = butterfly(temp[4], temp[3])
+    return out
+
 def idct_2d(dct_block):
     N = 8
     block = np.zeros((N,N)).astype(np.int16)
 
     for i in range(N):
         block[i] = idct_1d(dct_block[i], N)
+        #block[i] = loeffler_IDCT(dct_block[i])
+    block = np.transpose(block)
     for j in range(N):
-        block[:,j] = idct_1d(block[:,j], N)
+        block[j] = idct_1d(block[j], N)
+        # block[:,j] = loeffler_IDCT(block[:, j])
     return block
 
 def process_image(image_path):
@@ -146,19 +208,14 @@ def process_image(image_path):
                 min_value = dct_blocks[i,j]
 
     print('max value = ', max_value, '\n', 'min value = ', min_value)    
-    # print(dct_block[0,0].dtype)
-    # print(type(block[0,0]))
-    # print(type(dct_blocks[0,0]))
+
     for i in range(0, dct_blocks.shape[0], 8):
         for j in range(0, dct_blocks.shape[1], 8):
             dct_block = dct_blocks[i:i+8, j:j+8]
-            #reconstructed_block = idct_2d(dct_block)
-            reconstructed_block = idct(idct(dct_block, axis = 0, norm='ortho'), axis = 1, norm='ortho')
+            reconstructed_block = idct_2d(dct_block)
+            #reconstructed_block = idct(idct(dct_block, axis = 0, norm='ortho'), axis = 1, norm='ortho')
             reconstructed[i:i+8, j:j+8] = reconstructed_block 
-            # dct_block_py = dct_blocks_py[i:i+8, j:j+8]
-              
-            # reconstructed_py[i:i+8, j:j+8] = reconstructed_block_py
-    #print(reconstructed[0,0].dtype)
+            
     plt.figure(figsize=(15, 5))
     
     plt.subplot(2, 2, 1)
@@ -181,16 +238,6 @@ def process_image(image_path):
     plt.title("Block(0,0)")
     plt.imshow(dct_blocks[0:15,0:15], cmap='gray')
     plt.axis('off')
-
-    # plt.subplot(3, 2, 5)
-    # plt.title("DCT python")
-    # plt.imshow(dct_blocks_py, cmap='gray')
-    # plt.axis('off')
-
-    # plt.subplot(3, 2, 6)
-    # plt.title("IDCT python")
-    # plt.imshow(reconstructed_py, cmap='gray')
-    # plt.axis('off')
     
     x, y = h//8*8, w//8*8
     sum_val = 0
