@@ -14,8 +14,8 @@ def butterfly(I0, I1):
 def rotation(I0, I1, k, n):
     #O0 = k*I1*(np.sin(np.pi*n/(2*N)) - np.cos(np.pi*n/(2*N))) + k*np.cos(np.pi*n/(2*N))*(I0+I1)
     #O1 = -k*I0*(np.cos(np.pi*n/(2*N)) + np.sin(np.pi*n/(2*N))) + k*np.cos(np.pi*n/(2*N))*(I0+I1)
-    O0 = I0*k*np.cos(n*np.pi/(2*N))+I1*k*np.sin(n*np.pi/(2*N))
-    O1 = -I0*k*np.sin(n*np.pi/(2*N))+I1*k*np.cos(n*np.pi/(2*N))
+    O0 = I0*k*np.cos(n*np.pi/(2*N)) + I1*k*np.sin(n*np.pi/(2*N))
+    O1 = -I0*k*np.sin(n*np.pi/(2*N)) + I1*k*np.cos(n*np.pi/(2*N))
     return O0, O1
 
 def rotation_2(I0, I1, phi):
@@ -35,32 +35,33 @@ def loeffler_DCT(x):
     temp[1], temp[6] = butterfly(x[1], x[6])
     temp[2], temp[5] = butterfly(x[2], x[5])
     temp[3], temp[4] = butterfly(x[3], x[4])
-
+    #stage 2
     temp[0], temp[3] = butterfly(temp[0], temp[3])
     temp[1], temp[2] = butterfly(temp[1], temp[2])
     temp[4], temp[7] = rotation(temp[4], temp[7], 1, 3)
     temp[5], temp[6] = rotation(temp[5], temp[6], 1, 1)
-    #print(temp[0])
+    
     #stage 3
-    temp[0], temp[1] = butterfly(temp[0], temp[1])
-    temp[2], temp[3] = rotation(temp[2], temp[3], np.sqrt(2), 1)
+    out[0], out[4] = butterfly(temp[0], temp[1])
+    out[2], out[6] = rotation(temp[2], temp[3], np.sqrt(2), 6)
     temp[4], temp[6] = butterfly(temp[4], temp[6])
     temp[7], temp[5] = butterfly(temp[7], temp[5])
-    #print(temp[0])
-    #stage 4
-    temp[7], temp[4] = butterfly(temp[7], temp[4])
-    temp[5] = scaleup(temp[5])
-    temp[6] = scaleup(temp[6])
-    out = [temp[0], temp[7], temp[2], temp[5], temp[1], temp[6], temp[3], temp[4]]
     
+    #stage 4
+    out[1], out[7] = butterfly(temp[7], temp[4])
+    out[3] = scaleup(temp[5], np.sqrt(2))
+    out[5] = scaleup(temp[6], np.sqrt(2))
+    # out[0] /= np.sqrt(N)
+    # out = [temp[0], temp[7], temp[2], temp[5], temp[1], temp[6], temp[3], temp[4]]
+
     return out
 
 def loeffler_DCT_2(x):
-    out = np.zeros(N).astype(np.float32)
-    temp = np.zeros(N).astype(np.float32)
+    out = np.zeros(N)
+    temp = np.zeros(N)
     temp[0], temp[7] = butterfly(x[0], x[7])
-    temp[1], temp[6]  = butterfly(x[1], x[6])
-    temp[2], temp[5] = butterfly(x[2], x[6])
+    temp[1], temp[6] = butterfly(x[1], x[6])
+    temp[2], temp[5] = butterfly(x[2], x[5])
     temp[3], temp[4] = butterfly(x[3], x[4])
     #------------
     temp[1], temp[2] = butterfly(temp[1], temp[2])
@@ -73,71 +74,45 @@ def loeffler_DCT_2(x):
     out[0], out[4] = butterfly(temp[0], temp[1])
     temp[4], temp[5] = butterfly(temp[4], temp[5])
     temp[6], temp[7] = butterfly(temp[6], temp[7])
-    out[3], out[5] = butterfly(temp[5], temp[6])
-    out[2] = scaleup(temp[2], np.sqrt(2/8))
-    out[6] = scaleup(temp[3], np.sqrt(2/8))
-    out[1] = scaleup(temp[4], np.sqrt(2/8))
-    out[7] = scaleup(temp[7], np.sqrt(2/8))
+    out[3], out[5] = butterfly(temp[6], temp[5])
+    out[2] = scaleup(temp[2], np.sqrt(2))
+    out[6] = scaleup(temp[3], np.sqrt(2))
+    out[1] = scaleup(temp[4], np.sqrt(2))
+    out[7] = scaleup(temp[7], np.sqrt(2))
+
+    # for i in range(8):
+    #     out[i] /= np.sqrt(N)
 
     return out
 
-
-def loeffler_dct8(x):
-    # Инициализация выходного вектора
+def loeffler_IDCT2(X):
     out = np.zeros(N)
+    temp = np.zeros(N)
     
-    # Константы для поворотов
-    C_PI_16 = np.cos(np.pi / 16)
-    S_PI_16 = np.sin(np.pi / 16)
-    C_3PI_16 = np.cos(3 * np.pi / 16)
-    S_3PI_16 = np.sin(3 * np.pi / 16)
-    C_PI_8 = np.cos(np.pi / 8)
-    S_PI_8 = np.sin(np.pi / 8)
-    C_PI_4 = np.cos(np.pi / 4)
-    S_PI_4 = np.sin(np.pi / 4)
+    temp = [X[0], X[4], X[2], X[6], X[7], X[3], X[5], X[1]]
+    #stage 4
+    temp[0], temp[1] = butterfly(temp[0], temp[1])
+    temp[4] = scaleup(temp[4], np.sqrt(1/2))
+    temp[7] = scaleup(temp[7], np.sqrt(1/2))
+    temp[2], temp[3] = rotation(temp[2], temp[3], np.sqrt(2), 6)
+    #stage 3
+    temp[0], temp[1] = butterfly(temp[0], temp[1])
     
-    # Этап 1: Бабочки
-    t0, t7 = butterfly(x[0], x[7])
-    t1, t6 = butterfly(x[1], x[6])
-    t2, t5 = butterfly(x[2], x[5])
-    t3, t4 = butterfly(x[3], x[4])
-    
-    # Этап 2: Дополнительные бабочки и повороты
-    u0, u3 = butterfly(t0, t3)
-    u1, u2 = butterfly(t1, t2)
-    u4 = t4
-    u5 = (t6 - t5) * C_PI_4
-    u6 = (t6 + t5) * C_PI_4
-    u7 = t7
-    
-    # Этап 3: Повороты и бабочки
-    v0 = u0 + u1
-    v1 = u0 - u1
-    v2 = u2 * C_PI_8 + u3 * S_PI_8
-    v3 = u3 * C_PI_8 - u2 * S_PI_8
-    v4 = u4 + u5
-    v5 = u4 - u5
-    v6 = u6 + u7
-    v7 = u7 - u6
-    
-    # Этап 4: Финальные повороты для нечетных коэффициентов
-    out[0] = v0 * (1 / np.sqrt(2))  # Нормировка для k=0
-    out[4] = v1 * (1 / np.sqrt(2))  # Нормировка для k=4
-    out[2] = v2
-    out[6] = v3
-    
-    # Поворот для y[1] и y[7]
-    out[1] = v4 * C_3PI_16 + v6 * S_3PI_16
-    out[7] = v6 * C_3PI_16 - v4 * S_3PI_16
-    
-    # Поворот для y[3] и y[5]
-    out[3] = v5 * C_PI_16 + v7 * S_PI_16
-    out[5] = v7 * C_PI_16 - v5 * S_PI_16
-    
-    # Нормировка всех коэффициентов
-    for i in range(8):
-        out[i] *= np.sqrt(2 / 8)  # Общая нормировка DCT-II
-    
+    temp[4], temp[6] = butterfly(temp[4], temp[6])
+    temp[7], temp[5] = butterfly(temp[7], temp[5])
+    #stage 2
+    temp[0], temp[3] = butterfly(temp[0], temp[3])
+    temp[1], temp[2] = butterfly(temp[1], temp[2])
+    temp[4], temp[7] = rotation(temp[4], temp[7], 1, 3)
+    temp[5], temp[6] = rotation(temp[5], temp[6], 1, 1)
+    #stage 1
+    out[0], out[7] = butterfly(temp[0], temp[7])
+    out[1], out[6] = butterfly(temp[1], temp[6])
+    out[2], out[5] = butterfly(temp[2], temp[5])
+    out[3], out[4] = butterfly(temp[3], temp[4])
+    for i in range(N):
+        out[i] /= np.sqrt(2)
+
     return out
 
 def dct_1d(x, N):
@@ -165,12 +140,12 @@ def dct_2d(block):
     out = np.zeros((N,N)).astype(np.float32)
     
     for u in range(N):
-        dct_block[u] = loeffler_DCT_2(block[u])
+        dct_block[u] = loeffler_DCT(block[u])
         # dct_block[u] = dct_1d(block[u], N)
         
     dct_block = np.transpose(dct_block)
     for v in range(N):
-        dct_block[v] = loeffler_DCT_2(dct_block[v]) 
+        dct_block[v] = loeffler_DCT(dct_block[v]) 
         # dct_block[v] = dct_1d(dct_block[v], N)
     
     # print(dct_block)
@@ -178,6 +153,9 @@ def dct_2d(block):
     #     for j in range(N):
     #         out[i,j] = np.right_shift(dct_block[i,j], 5, casting='unsafe')
     out = dct_block
+    for i in range(8):
+        for j in range(8):
+            out[i, j] *= 1/N
     return out
      
 def idct_1d(X, N):
@@ -195,41 +173,57 @@ def idct_1d(X, N):
 
 def loeffler_IDCT(X):
     out = np.zeros(N)
-    temp = np.zeros(N).astype(np.int16)
+    temp = np.zeros(N)
     
     temp = [X[0], X[4], X[2], X[6], X[7], X[3], X[5], X[1]]
     #stage 4
-    temp[4], temp[7] = butterfly(temp[4], temp[7])
-    temp[5] = scaleup(temp[5])
-    temp[6] = scaleup(temp[6])
+    temp[7], temp[4] = butterfly(temp[7], temp[4])
+    temp[5] = scaleup(temp[5], np.sqrt(2))
+    temp[6] = scaleup(temp[6], np.sqrt(2))
+
     #stage 3
-    temp[1], temp[0] = butterfly(temp[1], temp[0])
-    temp[2], temp[3] = rotation(temp[2], temp[3], np.sqrt(2), 1)
-    temp[6], temp[4] = butterfly(temp[6], temp[4])
-    temp[5], temp[7] = butterfly(temp[5], temp[7])
+    temp[0], temp[1] = butterfly(temp[0], temp[1])
+    temp[0] *= 0.5
+    temp[1] *= 0.5
+    temp[2], temp[3] = rotation(temp[2], temp[3], np.sqrt(2), 6)
+    temp[4], temp[6] = butterfly(temp[4], temp[6])
+    temp[4] *= 0.5
+    temp[6] *= 0.5
+    temp[7], temp[5] = butterfly(temp[7], temp[5])
+    temp[7] *= 0.5
+    temp[5] *= 0.5
     #stage 2
-    temp[3], temp[0] = butterfly(temp[3], temp[0])
-    temp[2], temp[1] = butterfly(temp[2], temp[1])
+    temp[0], temp[3] = butterfly(temp[0], temp[3])
+    temp[0] *= 0.5
+    temp[3] *= 0.5
+    temp[1], temp[2] = butterfly(temp[1], temp[2])
+    temp[1] *= 0.5
+    temp[2] *= 0.5
     temp[4], temp[7] = rotation(temp[4], temp[7], 1, 3)
     temp[5], temp[6] = rotation(temp[5], temp[6], 1, 1)
     #stage 1
-    out[7], out[0] = butterfly(temp[7], temp[0])
-    out[6], out[1] = butterfly(temp[6], temp[1])
-    out[5], out[2] = butterfly(temp[5], temp[2])
-    out[4], out[3] = butterfly(temp[4], temp[3])
+    out[0], out[7] = butterfly(temp[0], temp[7])
+    out[1], out[6] = butterfly(temp[1], temp[6])
+    out[2], out[5] = butterfly(temp[2], temp[5])
+    out[3], out[4] = butterfly(temp[3], temp[4])
+    for i in range(N):
+        out[i] *= 0.5
     return out
 
 def idct_2d(dct_block):
     N = 8
-    block = np.zeros((N,N)).astype(np.int16)
+    block = np.zeros((N,N)).astype(np.float32)
 
     for i in range(N):
-        block[i] = idct_1d(dct_block[i], N)
-        # block[i] = loeffler_IDCT(dct_block[i])
+        # block[i] = idct_1d(dct_block[i], N)
+        block[i] = loeffler_IDCT(dct_block[i])
     block = np.transpose(block)
     for j in range(N):
-        block[j] = idct_1d(block[j], N)
-        # block[j] = loeffler_IDCT(block[ j])
+        # block[j] = idct_1d(block[j], N)
+        block[j] = loeffler_IDCT(block[j])
+    for i in range(N):
+        for j in range(N):
+            block[i,j] *= 1/N
     return block
 
 def process_image(image_path):
@@ -254,6 +248,7 @@ def process_image(image_path):
         for j in range(img_data.shape[1]):
             if(dct_blocks[i,j]>max_value):
                 max_value = dct_blocks[i,j]
+                print(i,j)
             if(dct_blocks[i,j]<min_value):
                 min_value = dct_blocks[i,j]
 
@@ -306,4 +301,24 @@ def process_image(image_path):
 
     plt.show()
 if __name__ == "__main__":
-    process_image("lena.jpg")
+    # process_image("lena.jpg")
+    x=[0, 1, 2, 3, 4, 5, 6, 7]
+    y1 = dct_1d(x, 8)
+    print('DCT-II\n',np.around(y1,4))
+
+    q1 = idct(y1, norm = 'ortho')
+    q2 = idct_1d(y1, N)
+    q3 = loeffler_IDCT(y1)
+    print('IDCT(scipy)\n',np.around(q1,4))
+    print('IDCT-II\n',np.around(q2,4))
+    print('IDCT(loeffler)\n',np.around(q3,4))
+
+    # y4 = dct(x, norm = 'ortho')
+    # print('DCT(scipy)\n',np.around(y4,4))
+
+    # y2 = loeffler_DCT(x)
+    # print('DCT loeffler\n',np.around(y2,4))
+
+    # y3 = loeffler_DCT_2(x)
+    # print('DCT loeffler (presentation)\n',np.around(y3,4))
+
