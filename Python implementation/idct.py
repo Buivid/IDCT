@@ -85,35 +85,39 @@ def loeffler_DCT_2(x):
 
     return out
 
-def loeffler_IDCT2(X):
-    out = np.zeros(N)
-    temp = np.zeros(N)
-    
-    temp = [X[0], X[4], X[2], X[6], X[7], X[3], X[5], X[1]]
-    #stage 4
-    temp[0], temp[1] = butterfly(temp[0], temp[1])
-    temp[4] = scaleup(temp[4], np.sqrt(1/2))
-    temp[7] = scaleup(temp[7], np.sqrt(1/2))
-    temp[2], temp[3] = rotation(temp[2], temp[3], np.sqrt(2), 6)
-    #stage 3
-    temp[0], temp[1] = butterfly(temp[0], temp[1])
-    
+def loeffler_IDCT2(F):
+    """Обратное ДКП (IDCT) по Леффлеру для блока 8x1."""
+    # Инициализация
+    temp = np.zeros(8, dtype=np.float32)
+    x = np.zeros(8, dtype=np.float32)
+
+    ### Обратные стадии (выполняются в порядке, обратном DCT) ###
+
+    # Обратная стадия 4 (последняя в DCT -> первая в IDCT)
+    temp[7], temp[4] = butterfly(F[1], F[7])
+    temp[5] = F[3] / np.sqrt(2)
+    temp[6] = F[5] / np.sqrt(2)
+
+    # Обратная стадия 3
+    temp[0], temp[1] = butterfly(F[0], F[4])
+    temp[2], temp[3] = rotation(F[2], F[6], np.sqrt(2), -6)
     temp[4], temp[6] = butterfly(temp[4], temp[6])
     temp[7], temp[5] = butterfly(temp[7], temp[5])
-    #stage 2
+
+    # Обратная стадия 2
     temp[0], temp[3] = butterfly(temp[0], temp[3])
     temp[1], temp[2] = butterfly(temp[1], temp[2])
-    temp[4], temp[7] = rotation(temp[4], temp[7], 1, 3)
-    temp[5], temp[6] = rotation(temp[5], temp[6], 1, 1)
-    #stage 1
-    out[0], out[7] = butterfly(temp[0], temp[7])
-    out[1], out[6] = butterfly(temp[1], temp[6])
-    out[2], out[5] = butterfly(temp[2], temp[5])
-    out[3], out[4] = butterfly(temp[3], temp[4])
-    for i in range(N):
-        out[i] /= np.sqrt(2)
+    temp[4], temp[7] = rotation(temp[4], temp[7], 1, -1)  # Угол π/16 (n=1)
+    temp[5], temp[6] = rotation(temp[5], temp[6], 1, -3)  # Угол 3π/16 (n=3)
 
-    return out
+    # Обратная стадия 1 (первая в DCT -> последняя в IDCT)
+    x[0], x[7] = butterfly(temp[0], temp[7])
+    x[1], x[6] = butterfly(temp[1], temp[6])
+    x[2], x[5] = butterfly(temp[2], temp[5])
+    x[3], x[4] = butterfly(temp[3], temp[4])
+
+    # Нормализация (деление на 2)
+    return x 
 
 def dct_1d(x, N):
     out = np.zeros(N).astype(np.int16)
@@ -183,31 +187,26 @@ def loeffler_IDCT(X):
 
     #stage 3
     temp[0], temp[1] = butterfly(temp[0], temp[1])
-    temp[0] *= 0.5
-    temp[1] *= 0.5
-    temp[2], temp[3] = rotation(temp[2], temp[3], np.sqrt(2), 6)
+
+    temp[2], temp[3] = rotation(temp[2], temp[3], np.sqrt(2), -6)
     temp[4], temp[6] = butterfly(temp[4], temp[6])
-    temp[4] *= 0.5
-    temp[6] *= 0.5
+
     temp[7], temp[5] = butterfly(temp[7], temp[5])
-    temp[7] *= 0.5
-    temp[5] *= 0.5
+
     #stage 2
     temp[0], temp[3] = butterfly(temp[0], temp[3])
-    temp[0] *= 0.5
-    temp[3] *= 0.5
+
     temp[1], temp[2] = butterfly(temp[1], temp[2])
-    temp[1] *= 0.5
-    temp[2] *= 0.5
-    temp[4], temp[7] = rotation(temp[4], temp[7], 1, 3)
-    temp[5], temp[6] = rotation(temp[5], temp[6], 1, 1)
+
+    temp[4], temp[7] = rotation(temp[4], temp[7], 1, -3)
+    temp[5], temp[6] = rotation(temp[5], temp[6], 1, -1)
     #stage 1
     out[0], out[7] = butterfly(temp[0], temp[7])
     out[1], out[6] = butterfly(temp[1], temp[6])
     out[2], out[5] = butterfly(temp[2], temp[5])
     out[3], out[4] = butterfly(temp[3], temp[4])
-    for i in range(N):
-        out[i] *= 0.5
+    # for i in range(N):
+    #     out[i] /= np.sqrt(N)
     return out
 
 def idct_2d(dct_block):
@@ -301,7 +300,7 @@ def process_image(image_path):
 
     plt.show()
 if __name__ == "__main__":
-    # process_image("lena.jpg")
+    process_image("lena.jpg")
     x=[0, 1, 2, 3, 4, 5, 6, 7]
     y1 = dct_1d(x, 8)
     print('DCT-II\n',np.around(y1,4))
